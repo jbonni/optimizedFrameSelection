@@ -27,7 +27,6 @@ if config.load_checkpoint != "":
 else:
     sess.run(tf.initialize_all_variables())
 
-print("Starting run: " + str(config.run_name))
 print("Using agent "+config.agent)
 print("On device: "+ config.device)
 
