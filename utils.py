@@ -39,13 +39,9 @@ def create_env(config):
 
 
 def load_checkpoint():
-    run_num = re.search(r"\d+", config.load_checkpoint)
-    if run_num == None:
-        raise Exception("Not a run number in checkpoint file")
-    run_num = run_num.group()
-    for folder in os.listdir("log"):
-        folder_num = re.search(r"\d+", folder)
-        if folder_num and folder_num.group() == run_num:
-            ckpt_file = "log/"+folder+"/checkpoint/"+config.load_checkpoint
+    checkpoints = os.listdir("agent_checkpoints")
+    if config.load_checkpoint not in checkpoints:
+        raise Exception("This checkpoint file cannot be found")
+    ckpt_file = "agent_checkpoints/"+config.load_checkpoint
     print("loading: " + ckpt_file)
     saver.restore(sess, ckpt_file)
