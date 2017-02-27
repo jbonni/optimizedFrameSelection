@@ -23,7 +23,7 @@ agent.testing(True)
 saver = tf.train.Saver(max_to_keep=20)
 
 if config.load_checkpoint != "":
-    utils.load_checkpoint()
+    utils.load_checkpoint(sess, saver, config)
 else:
     sess.run(tf.initialize_all_variables())
 
@@ -31,7 +31,7 @@ print("Starting run: " + str(config.run_name))
 print("Using agent "+config.agent)
 print("On device: "+ config.device)
 
-def create_dataset():
+def generate_dataset():
     for episode in range(config.num_episodes):
         x, r, done, score = env.reset(), 0, False, 0
         ep_begin_t = time.time()
@@ -45,4 +45,4 @@ def create_dataset():
         if episode % 50 == 0:
             print("episode: %i -- score: %i"%(episode, score))
 
-train()
+generate_dataset()

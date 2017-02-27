@@ -1,5 +1,6 @@
 import re
 import os
+import numpy as np
 import string
 from ale_python_interface import ALEInterface
 import gym
@@ -38,10 +39,8 @@ def create_env(config):
     return env
 
 
-def load_checkpoint():
+def load_checkpoint(sess, saver, config):
     checkpoints = os.listdir("agent_checkpoints")
-    if config.load_checkpoint not in checkpoints:
-        raise Exception("This checkpoint file cannot be found")
     ckpt_file = "agent_checkpoints/"+config.load_checkpoint
     print("loading: " + ckpt_file)
     saver.restore(sess, ckpt_file)
