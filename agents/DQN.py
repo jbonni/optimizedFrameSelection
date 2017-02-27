@@ -47,7 +47,7 @@ class DQN(BaseAgent):
     # creates the Q network and the target network
     def build_NNs(self):
         with tf.variable_scope("Q"):
-            self.Q = self.Q_network(self.state_ph, "DQN")
+            self.Q = self.Q_network(self.state_ph, "DQN", representations=True)
         with tf.variable_scope("QT"):
             self.QT = self.Q_network(
                 self.stateT_ph, "DQNT")
@@ -77,7 +77,7 @@ class DQN(BaseAgent):
     # Create the Q network operations
     # If Collection is "DQN", all the variables of this NN are added to the
     # collection "DQN_weights" and all the summaries to the colleciton "DQN_summaries"
-    def Q_network(self, input_state, Collection):
+    def Q_network(self, input_state, Collection, representations=False):
         conv_stack_shape=[(32,8,4),
                     (64,4,2),
                     (64,3,1)]
@@ -85,7 +85,11 @@ class DQN(BaseAgent):
         cops.build_activation_summary(head, Collection)
         head = cops.conv_stack(head, conv_stack_shape, self.config, Collection)
         head = cops.flatten(head)
+        if representations:
+            self.representations.append(head)
         head = cops.add_relu_layer(head, size=512, Collection=Collection)
+        if representations:
+            self.representations.append(head)
         Q = cops.add_linear_layer(head, self.config.action_num, Collection, layer_name="Q")
         # DQN summary
         for i in range(self.config.action_num):

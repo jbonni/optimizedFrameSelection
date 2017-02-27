@@ -49,6 +49,8 @@ class BaseAgent:
         self.default_action_mode = self.action_modes.items()[0][0]
         self.action_mode = self.default_action_mode
 
+        self.representations = []
+
     def step(self, screen, reward):
         # clip the reward
         if not self.isTesting:
@@ -83,13 +85,18 @@ class BaseAgent:
         self.game_state[0, :, :, -1] = screen
 
     def e_greedy_action(self, epsilon):
+        ops = [self.Q]+self.representations
+        res = self.sess.run(ops, feed_dict={
+                        self.state_ph: self.game_state})[0]
+
+        Q_np = res[0]
+        self.representations_np = []
+        for rep in res[1:]:
+            self.representations_np.append(rep)
+
+        action = np.argmax(Q_np)
         if np.random.uniform() < epsilon:
             action = random.randint(0, self.config.action_num - 1)
-        else:
-            action = np.argmax(
-                self.sess.run(
-                    self.Q, feed_dict={
-                        self.state_ph: self.game_state})[0])
         return action
 
     def testing(self, t=True):
