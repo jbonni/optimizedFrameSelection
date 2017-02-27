@@ -45,7 +45,7 @@ class BaseAgent:
 
         # if the new agent needs other action modes define a different dict
         self.action_modes = {
-            str(config.testing_epsilon) + "_greedy": self.e_greedy_action}
+            str(config.epsilon) + "_greedy": self.e_greedy_action}
         self.default_action_mode = self.action_modes.items()[0][0]
         self.action_mode = self.default_action_mode
 
