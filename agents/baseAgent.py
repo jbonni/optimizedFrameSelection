@@ -24,6 +24,7 @@ import time
 #   self.game_reward is the latest reward received
 #   sefl.game_action is the latest action taken
 
+
 class BaseAgent:
 
     # must be implemented by each agent
@@ -85,16 +86,16 @@ class BaseAgent:
         self.game_state[0, :, :, -1] = screen
 
     def e_greedy_action(self, epsilon):
-        ops = [self.Q]+self.representations
+        ops = [self.Q] + self.representations
         res = self.sess.run(ops, feed_dict={
-                        self.state_ph: self.game_state})[0]
+            self.state_ph: self.game_state})[0]
 
-        Q_np = res[0]
+        self.Q_np = res[0]
         self.representations_np = []
         for rep in res[1:]:
             self.representations_np.append(rep)
 
-        action = np.argmax(Q_np)
+        action = np.argmax(self.Q_np)
         if np.random.uniform() < epsilon:
             action = random.randint(0, self.config.action_num - 1)
         return action
