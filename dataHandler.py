@@ -11,7 +11,6 @@ class dataHandler():
                      "internal1"    :{},
                      "internal2"    :{}}
         self.qty    = 0
-        self.pklQty = 0
         
         self.dir = os.path.join(os.path.dirname(__file__), '/dataset/')
         
@@ -53,13 +52,20 @@ class dataHandler():
         if not os.path.exists(self.dir):
             os.makedirs(self.dir)
             
-        with open(self.dir + str(self.pklQty) + '.pickle', 'wb') as handle:
+        with open(self.dir + 'dataset.pickle', 'a+b') as handle:
             pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
             self.emptyHandler()
-            self.pklQty += 1
             
-    def pickleLoad(self,datasetID):
-        with open(self.dir + str(datasetID) + '.pickle', 'rb') as handle:
-            self.data   = pickle.load(handle)
+    def pickleLoadNext(self):
+        try:
+            self.data = pickle.load(self.pickleLoad)
             self.qty    = len(self.data["isTerminal"]) 
-            self.pklQty = datasetID
+            return True
+        except EOFError:
+            print("EOF")
+            self.pickleLoad.close()
+            return False
+        except AttributeError:
+            #pickle closed, open and retry
+            self.pickleLoad = open(self.dir + 'dataset.pickle', 'rb')
+            self.pickleLoadNext()
