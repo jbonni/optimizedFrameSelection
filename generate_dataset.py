@@ -4,7 +4,7 @@ import numpy as np
 import parseConfig
 import utils
 import importlib
-import dataHandler
+from dataHandler import dataHandler
 
 config = parseConfig.config
 
@@ -27,6 +27,7 @@ saver = tf.train.Saver(max_to_keep=20)
 if config.load_checkpoint != "":
     utils.load_checkpoint(sess, saver, config)
 else:
+    print("Using random agent")
     sess.run(tf.initialize_all_variables())
 
 print("Using agent " + config.agent)
@@ -42,12 +43,12 @@ def generate_dataset():
         ep_begin_step_count = agent.step_count
         while not done:
             action = agent.step(x, r)
-            dh.addData(x, agnet.Q_np, action, r, done,
+            dh.addData(x, agent.Q_np, action, r, done,
                        agent.representations[0], agent.representations[0])
             x, r, done, info = env.step(action)
             score += r
         agent.terminal()
-        if episode % 50 == 0:
+        if episode % 5 == 0:
             print("episode: %i -- score: %i" % (episode, score))
 
 generate_dataset()
