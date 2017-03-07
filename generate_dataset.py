@@ -37,7 +37,9 @@ dh = dataHandler()
 
 
 def generate_dataset():
-    for episode in range(config.num_episodes):
+    global_step = 0
+    episode = 0
+    while global_step < config.num_steps:
         x, r, done, score = env.reset(), 0, False, 0
         ep_begin_t = time.time()
         ep_begin_step_count = agent.step_count
@@ -47,8 +49,10 @@ def generate_dataset():
                        agent.representations[0], agent.representations[0])
             x, r, done, info = env.step(action)
             score += r
+            global_step += 1
         agent.terminal()
         if episode % 5 == 0:
-            print("episode: %i -- score: %i" % (episode, score))
+            print("step %i out of %i -- %i%% -- score: %i" % (global_step, config.num_steps, 100*float(global_step)/config.num_steps, score))
+        episode += 1
 
 generate_dataset()
