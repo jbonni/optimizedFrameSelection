@@ -4,6 +4,18 @@ import datetime
 import operator
 from functools import reduce
 import os
+import random
+import math
+
+
+
+
+
+
+
+
+
+TRAIN_RATIO = 0.9
 
 
 
@@ -23,9 +35,12 @@ import os
     - Add path selection for reading & writing
     - save and load the quantity of items in the file
     - Manage different size databases
+    - getbatch(training/test)
+
+    - New class datahandler, this class will become hdf5handler and inherit
+        from datahandler class or datahandler will load hdf5 handler methods
 
     - Really slow to save!! add csv and other methods
-
 """
 
 
@@ -91,6 +106,7 @@ class dataHandler():
 
 
 
+
     def addData(self, *data):
         """
         @@@@@@@@@@
@@ -131,7 +147,7 @@ class dataHandler():
             #input sizes.
             if shape != self.dataShape:
                 print("DIFFERENT DATA SHAPE: ABORT WRITE")
-                return
+                raise
 
 
         #if buffer full, save to hdf5 file
@@ -141,6 +157,119 @@ class dataHandler():
         self.buffer["data"][self.buffIndex] = flat
 
         self.buffIndex += 1
+
+
+
+
+
+
+    #NOT READY
+    def loadBatch(self, batchType = "training"):
+        try:
+            #first pass or dataset modified
+            with h5py.File(self.fileName, "r",  libver='latest') as f:
+                if batchType == "training":
+                    batch = f["batch/" + str(self.batchIndex)]
+                    self.batchIndex += 1
+                    return batch
+                elif batchType == "test":
+                    return f["batch/testBatch"]
+
+        except OSError:
+                print("ERROR: File does not exists")
+                return
+
+    #NOT READY
+    def createBatch(self, batchSize):
+        self.batchIndex = 0
+
+        try:
+            #first pass or dataset modified
+            with h5py.File(self.fileName, "a",  libver='latest') as f:
+#                f.create_group("batch")
+                qty = f["flatData/quantity"][0]
+                fullList = random.sample(range(0, qty),qty)
+
+#                if qty%batchSize != 0 :
+#                    randSample = random.sample(range(0, qty%batchSize),
+#                                                   qty%batchSize)
+#                    fullList += randSample
+
+                f["batch/list"] = fullList
+
+                for i in range(0,math.ceil(qty/batchSize)):
+                    start = i*batchSize
+
+                    #training##Ne devrait jamais dépasser vu le 0.9. mais catcher l'erreur
+                    if TRAIN_RATIO * qty < start:
+                        batchList = fullList[start: start + batchSize]
+                        f["batch/"+ str(self.batchIndex)] = \
+                          self.load(batchList)
+                        self.batchIndex += 1
+                    #test
+                    else:
+                        f["batch/test"] = self.load(fullList[start:])
+                        break
+
+
+
+        except OSError:
+            print("ERROR: File does not exists")
+            return
+
+
+
+
+
+
+#    def loadBatch(self, batchSize, batchType = "training"):
+#        """
+#        @@@@@@@@@@
+#        batch
+#        @@@@@@@@@@
+#
+#        description:
+#
+#
+#        args:
+#
+#
+#        returns:
+#          NA
+#
+#        examples:
+#
+#        """
+#        try:
+#            if batchType == "training":
+#                batchList = self.trainList[self.trainPointer:\
+#                                           self.trainPointer+batchSize]
+#                self.trainPointer += batchSize
+#                return self.load(batchList)
+#            elif batchType == "test":
+#                return self.load(self.testList)
+#            else:
+#                print("ERROR : invalid batchType")
+#
+#        except AttributeError:
+#            try:
+#                #first pass or dataset modified
+#                with h5py.File(self.fileName, "r",  libver='latest') as f:
+#                    fullList = random.sample(range(0, f["flatData/quantity"][0]),
+#                                             f["flatData/quantity"][0])
+#            except OSError:
+#                print("ERROR: File does not exists")
+#                return
+#            #create two list for training and test
+#            self.trainList = fullList[0:int(0.9*len(fullList))]
+#            self.testList = fullList[int(0.9*len(fullList)):]
+#            self.trainPointer = 0
+#            #retry the batch
+#            return self.batch(batchSize, batchType)
+
+
+
+
 
 
     def flattenData(self,*data):
@@ -228,59 +357,6 @@ class dataHandler():
 
 
 
-    def loadRange(self, start, end):
-        """
-        @@@@@@@@@@
-        loadRange
-        @@@@@@@@@@
-
-        description:
-          loads a range of elements element from the hdf5 file. If start is
-          larger than end, the two elements will be swapped and the range
-          returned anyway.
-
-        args:
-          start : First elements of the range
-          end : Last element of the range
-
-        returns:
-          data : the data requested in the specified range. will return False
-                 if the range is out of bound.
-
-        examples:
-          returnedData = dh.loadRange(20,60)
-          returnedData = dh.loadRange(60,20) #same as 20,60
-          returnedData = dh.LoadRange(400000:400002)
-          if isinstance(returnedData,bool):
-              print("range off bound")
-        """
-        #swap start is bigger than end
-        if start>end:
-            start, end = end, start
-
-        if self.fileType == "hdf5":
-            #Open the file in read mode and returns the data
-            with h5py.File(self.fileName, "r",  libver='latest') as f:
-                try:
-                    data = f["rawData/data"][start:end]
-
-                    if data.shape[0] < end - start:
-                        print("INVALID RANGE, LOAD CANCELLED")
-                        data = False
-                except KeyError:
-                    #invalid range
-                    print("INVALID RANGE, LOAD CANCELLED")
-                    data = False
-        elif self.fileType == "csv":
-            pass
-        else:
-            print("fileType not configured")
-            return False
-
-
-
-        return data
-
 
     def load(self, index_or_list):
         """
@@ -316,15 +392,66 @@ class dataHandler():
             #Open the file in read mode and returns the data
             with h5py.File(self.fileName, "r",  libver='latest') as f:
                 try:
-                    data = f["rawData/data"][index_or_list]
+                    data = f["flatData/data"][index_or_list]
                 except (KeyError, ValueError):
                     #invalid index in
                     print("INVALID INDEXES, LOAD CANCELLED")
                     data = False
-            return data, index_or_list
+            return data#, index_or_list
         else:
             print("fileType not configured")
             raise
+
+
+    def loadRange(self, start, end):
+        """
+        @@@@@@@@@@
+        loadRange
+        @@@@@@@@@@
+
+        description:
+          loads a range of elements element from the hdf5 file. If start is
+          larger than end, the two elements will be swapped and the range
+          returned anyway.
+
+        args:
+          start : First elements of the range
+          end : Last element of the range
+
+        returns:
+          data : the data requested in the specified range. will return False
+                 if the range is out of bound.
+
+        examples:
+          returnedData = dh.loadRange(20,60)
+          returnedData = dh.loadRange(60,20) #same as 20,60
+          returnedData = dh.LoadRange(400000:400002)
+          if isinstance(returnedData,bool):
+              print("range off bound")
+        """
+        #swap start is bigger than end
+        if start>end:
+            start, end = end, start
+
+        if self.fileType == "hdf5":
+            #Open the file in read mode and returns the data
+            with h5py.File(self.fileName, "r",  libver='latest') as f:
+                try:
+                    data = f["flatData/data"][start:end]
+
+                    if data.shape[0] < end - start:
+                        print("INVALID RANGE, LOAD CANCELLED")
+                        data = False
+                except KeyError:
+                    #invalid range
+                    print("INVALID RANGE, LOAD CANCELLED")
+                    data = False
+        elif self.fileType == "csv":
+            pass
+        else:
+            print("fileType not configured")
+            return False
+        return data
 
 
     def saveData(self, dataType = "hdf5"):
@@ -359,45 +486,53 @@ class dataHandler():
             with h5py.File(self.fileName, "a",  libver='latest') as f:
                 #for first write, create group
                 if self.maxDataIndex == 0:
-                    grp = f.create_group("rawData")
+                    grp = f.create_group("flatData")
                     grp.create_dataset("data",
                                        data=self.buffer["data"],
                                        compression="lzf",
                                        maxshape=(None, self.dataLength))
+                    grp.create_dataset("quantity",
+                                       data=[resize])
                 #if first group created, resize and add new data
                 else:
-                    f["rawData/data"].resize(
-                        f["rawData/data"].shape[0]+resize,axis=0)
-                    f["rawData/data"][-resize:] = self.buffer["data"][:resize]
+                    f["flatData/data"].resize(
+                        f["flatData/data"].shape[0]+resize,axis=0)
+                    f["flatData/data"][-resize:] = self.buffer["data"][:resize]
+                    f["flatData/quantity"][0] = resize + \
+                                                    f["flatData/quantity"][0]
         else:
             print("fileType not configured")
             raise
 
-
-
-
-
         self.initBuffer()
         self.maxDataIndex += resize
 
+        #remove the two batch list since the dataset has been modified
+        try:
+            del self.trainList
+            del self.testList
+        except AttributeError:
+            pass
 
 
 
 
-    """
-        TEST SECTION
-    """
-    def test(self):
-        #datahandler object
 
-        #fake data
-        fake1=np.random.randint(255,size = [7056])
-        fake2=np.random.randint(255,size = [4,4])
-        fake3=np.random.randint(255,size = [512])
-        for _ in range(40001):
-            dh.addData(fake1,fake2,fake3)
-        del fake1, fake2, fake3
-        #save the elements in the buffer
-        dh.saveData()
+"""
+    TEST SECTION
+"""
+def test():
+    #datahandler object
+    dh = dataHandler("hdf5")
+    #fake data
+    fake1=np.random.randint(255,size = [7056])
+    fake2=np.random.randint(255,size = [4,4])
+    fake3=np.random.randint(255,size = [512])
+    for _ in range(60000):
+        dh.addData(fake1,fake2,fake3)
+    del fake1, fake2, fake3
+    #save the elements in the buffer
+    dh.saveData()
 
-dh = dataHandler("hdf5")
+
+
