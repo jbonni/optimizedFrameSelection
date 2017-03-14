@@ -507,12 +507,7 @@ class dataHandler():
         self.initBuffer()
         self.maxDataIndex += resize
 
-        #remove the two batch list since the dataset has been modified
-        try:
-            del self.trainList
-            del self.testList
-        except AttributeError:
-            pass
+
 
 
 
