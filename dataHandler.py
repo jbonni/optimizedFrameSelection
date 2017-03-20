@@ -6,24 +6,56 @@ from functools import reduce
 import os
 import random
 import math
-
-
-
-
-
+import time
+import cProfile as cP
 
 
 
 
 TRAIN_RATIO = 0.9
+SLICE_SIZE = 200
+
+
+"""
+==========PERFORMANCE EVALUATION==========
+SPECS:
+    Intel(R) Atom (TM) x5-Z8300 CPU @ 1.44GHz
+    4.00Go Ram
+    Windows 10 64bits
+==========
+PARAMETERS:
+    SLICE_SIZE = 200
+    TRAIN_RATIO = 0.9
+==========
+RESULTS:
+    1000 uint8 elements of size [10, 10, 10, 10] and batches of 100
+    db creation time:1.262
+    batch creation time:6.325
+    batch load time:6.064691066741943 for 100 batches
+    raw load time:52.64411544799805 for 100 batches
+    44.581Mo on memory
+--
+    10000 uint8 elements of size [10, 10, 10, 10] and batches of 100
+    db creation time:13.798
+    batch creation time:70.114
+    batch load time:6.173628807067871 for 100 batches
+    raw load time:60.94627594947815 for 100 batches
+    444.964Mo on memory
+--
+    100000 uint8 elements of size [10, 10, 10, 10] and batches of 100
+    db creation time:142.547
+    batch creation time:1378.497
+    batch load time:6.798546552658081 for 100 batches
+    raw load time:66.31550431251526 for 100 batches
+"""
+
+
 
 
 
 """
 !!!!!!!!ERRORS ENCOUNTERED!!!!!!!!
-    -array de 1 : a = np.array(1.2312)
-    a.shape
-    Out[5]: ()
+
 
 
 """
@@ -32,15 +64,12 @@ TRAIN_RATIO = 0.9
 
 """
 ********TO DO********
-    - Add path selection for reading & writing
-    - save and load the quantity of items in the file
     - Manage different size databases
-    - getbatch(training/test)
 
     - New class datahandler, this class will become hdf5handler and inherit
         from datahandler class or datahandler will load hdf5 handler methods
 
-    - Really slow to save!! add csv and other methods
+    - slow to save and read!! add csv and other methods
 """
 
 
@@ -56,6 +85,12 @@ class dataHandler():
       Can be used to generate a dataset or read from an existing one.
 
     example:
+        #test parameters
+        DB_SIZE = 10000
+        BATCH_SIZE = 100
+        BATCH_LOAD = 100
+
+
         #datahandler object
         dh = dataHandler()
 
@@ -66,18 +101,36 @@ class dataHandler():
         fake4=np.random.randint(255,size = [28,28,28])
 
         #save loop
-        for _ in range(40001):
+        for _ in range(DB_SIZE):
             dh.addData(fake1,fake2,fake3,fake4)
         del fake1, fake2, fake3, fake4
 
         #Empty the buffer and save it
         dh.saveData()
 
-        #load data
-        load1, _            = dh.load(395)
-        loadList, indexList = dh.load([1,602,332,999,20000])
-        loadRange           = dh.loadRange(20,400)
-    """
+        #create random lists of batchSize
+        trainList, testList= dh.randList(BATCH_SIZE)
+
+        t = time.time()
+        #create the batch datasets
+        dh.createBatch(trainList,"training")
+        dh.createBatch(testList,"test")
+        print("batch creation time:%.3f"%(time.time()-t))
+
+        #Load from the batches
+        t = time.time()
+        for i in range(BATCH_LOAD):
+            batch1 = dh.loadBatch("training")
+        print("batch load time:{} for {} batches".format((time.time()-t),BATCH_LOAD))
+
+        #load from the raw data
+        t = time.time()
+        for i in range(BATCH_LOAD):
+            batch2 = dh.load(trainList[0])
+        print("raw load time:{} for {} batches".format((time.time()-t),BATCH_LOAD))
+        """
+
+
     def __init__(self, fileType = "hdf5"):
 
         if not isinstance(fileType, str):
@@ -86,8 +139,10 @@ class dataHandler():
 
         #Max index in the dataset
         self.maxDataIndex = 0
-        #Size of the save slice
-        self.sliceSize = 20000
+
+        #Size of the save slice in memory
+        self.sliceSize = SLICE_SIZE
+
         #length of the flatten array with the data
         self.dataLength = 0
         self.dataShape = []
@@ -96,6 +151,10 @@ class dataHandler():
         #write in the hdf5 file for every new item (painfully slow)
         self.buffer = {}
 
+        #index for batch reading
+        self.batchIndex = 0
+
+        #filetype of the datahandler (to remove)
         self.fileType = fileType
 
         #filename with timestamp.
@@ -159,115 +218,75 @@ class dataHandler():
         self.buffIndex += 1
 
 
+    def createBatch(self, randomList, batchType = "training"):
+        """
+        @@@@@@@@@@
+        createBatch
+        @@@@@@@@@@
 
+        description:
+          Creates batches in the dataset for fast reads. This operation
+          takes time but allows to speed up reading up to 100 times. The
+          batches will be in a group batch/train(or test).
 
+        args:
+          randomList : Random list of indexes from the original database. This
+                       list must be sliced into batches.
+          batchType : The type of the current batch, There is two options:
+                          -training
+                          -test
 
+        returns:
+          NA
 
-    #NOT READY
-    def loadBatch(self, batchType = "training"):
+        examples:
+          dh = dataHandler("hdf5")
+          trainList, testList= dh.randList(100)
+
+          dh.createBatch(trainList,"training")
+          dh.createBatch(testList,"test")
+        """
         try:
-            #first pass or dataset modified
-            with h5py.File(self.fileName, "r",  libver='latest') as f:
+            with h5py.File(self.fileName, "a",  libver='latest') as f:
+                #create training dataset
                 if batchType == "training":
-                    batch = f["batch/" + str(self.batchIndex)]
-                    self.batchIndex += 1
-                    return batch
-                elif batchType == "test":
-                    return f["batch/testBatch"]
+                    #group and attributes
+                    grp = f.create_group("batch/training")
+                    grp.attrs["batchQuantity"] = len(randomList)
+                    grp.attrs["batchSize"] = len(randomList[0])
+                    f["batch/training/list"] = randomList
 
+                    startTime = time.time()
+
+                    #Create batches
+                    for i, batchList in enumerate(randomList):
+                        grp.create_dataset(str(i),
+                                           data=self.load(batchList),
+                                           chunks=(len(batchList),
+                                                   self.dataLength),
+                                           compression="lzf",
+                                           maxshape=(len(batchList),
+                                                     self.dataLength))
+                        if i == 0:
+                            print("\tCreating train batch, time estimate=%.2fsec"
+                            %((time.time()-startTime)*len(randomList)))
+
+                #create test dataset
+                elif batchType == "test":
+                    print("\tCreate test batch")
+                    grp = f.create_group("batch/test")
+                    f["batch/test/list"] = randomList
+                    grp.create_dataset("data",
+                                       data=self.load(randomList),
+                                       compression="lzf",
+                                       chunks=True,
+                                       maxshape=(len(randomList),
+                                                 self.dataLength))
+                else:
+                    raise
         except OSError:
                 print("ERROR: File does not exists")
-                return
-
-    #NOT READY
-    def createBatch(self, batchSize):
-        self.batchIndex = 0
-
-        try:
-            #first pass or dataset modified
-            with h5py.File(self.fileName, "a",  libver='latest') as f:
-#                f.create_group("batch")
-                qty = f["flatData/quantity"][0]
-                fullList = random.sample(range(0, qty),qty)
-
-#                if qty%batchSize != 0 :
-#                    randSample = random.sample(range(0, qty%batchSize),
-#                                                   qty%batchSize)
-#                    fullList += randSample
-
-                f["batch/list"] = fullList
-
-                for i in range(0,math.ceil(qty/batchSize)):
-                    start = i*batchSize
-
-                    #training##Ne devrait jamais dépasser vu le 0.9. mais catcher l'erreur
-                    if TRAIN_RATIO * qty < start:
-                        batchList = fullList[start: start + batchSize]
-                        f["batch/"+ str(self.batchIndex)] = \
-                          self.load(batchList)
-                        self.batchIndex += 1
-                    #test
-                    else:
-                        f["batch/test"] = self.load(fullList[start:])
-                        break
-
-
-
-        except OSError:
-            print("ERROR: File does not exists")
-            return
-
-
-
-
-
-
-#    def loadBatch(self, batchSize, batchType = "training"):
-#        """
-#        @@@@@@@@@@
-#        batch
-#        @@@@@@@@@@
-#
-#        description:
-#
-#
-#        args:
-#
-#
-#        returns:
-#          NA
-#
-#        examples:
-#
-#        """
-#        try:
-#            if batchType == "training":
-#                batchList = self.trainList[self.trainPointer:\
-#                                           self.trainPointer+batchSize]
-#                self.trainPointer += batchSize
-#                return self.load(batchList)
-#            elif batchType == "test":
-#                return self.load(self.testList)
-#            else:
-#                print("ERROR : invalid batchType")
-#
-#        except AttributeError:
-#            try:
-#                #first pass or dataset modified
-#                with h5py.File(self.fileName, "r",  libver='latest') as f:
-#                    fullList = random.sample(range(0, f["flatData/quantity"][0]),
-#                                             f["flatData/quantity"][0])
-#            except OSError:
-#                print("ERROR: File does not exists")
-#                return
-#            #create two list for training and test
-#            self.trainList = fullList[0:int(0.9*len(fullList))]
-#            self.testList = fullList[int(0.9*len(fullList)):]
-#            self.trainPointer = 0
-#            #retry the batch
-#            return self.batch(batchSize, batchType)
-
-
+                raise
 
 
 
@@ -384,23 +403,82 @@ class dataHandler():
           if isinstance(returnedData,bool):
               print("index off bound")
         """
-        #the load require a sorted list
-        if isinstance(index_or_list, list):
-          index_or_list.sort()
+
+
+        if isinstance(index_or_list, int) or \
+           isinstance(index_or_list, np.int32):
+            pass
+        else:
+            try:
+                index_or_list.sort()
+            except AttributeError:
+                print("ERROR: Input not supported")
+                raise
+
 
         if self.fileType == "hdf5":
             #Open the file in read mode and returns the data
             with h5py.File(self.fileName, "r",  libver='latest') as f:
                 try:
-                    data = f["flatData/data"][index_or_list]
+                    return f["flatData/data"][list(index_or_list)]
                 except (KeyError, ValueError):
                     #invalid index in
                     print("INVALID INDEXES, LOAD CANCELLED")
-                    data = False
-            return data#, index_or_list
+                    return False
         else:
             print("fileType not configured")
             raise
+
+
+    def loadBatch(self, batchType = "training"):
+        """
+        @@@@@@@@@@
+        loadBatch
+        @@@@@@@@@@
+
+        description:
+          returns batches of batchSize from the batch database. This will
+          return a single batch from index 0 to batchQuantity at every call.
+
+
+        args:
+          batchType : The type of the current batch, There is two options:
+                          -training
+                          -test
+
+        returns:
+          batch : The training batch of batchSize of the test batch
+
+        examples:
+          dh.createBatch(trainList,"training")
+          dh.createBatch(testList,"test")
+
+          for i in range(100):
+              batchtrain = dh.loadBatch("training")
+
+          batchtest = dh.loadBatch("test")
+
+        """
+        try:
+            #first pass or dataset modified
+            with h5py.File(self.fileName, "r",  libver='latest') as f:
+                if batchType == "training":
+                    batch = f["batch/training/" + str(self.batchIndex)][:]
+                    self.batchIndex += 1
+                    try:
+                        if self.batchIndex >= self.batchQuantity:
+                            self.batchIndex = 0
+                    except AttributeError:
+                        self.batchQuantity = \
+                                f["batch/training"].attrs["batchQuantity"]
+
+                    return batch
+                elif batchType == "test":
+                    return f["batch/test/data"][:]
+
+        except OSError:
+                print("ERROR: File does not exists")
+                raise
 
 
     def loadRange(self, start, end):
@@ -454,6 +532,42 @@ class dataHandler():
         return data
 
 
+    def randList(self, batchSize):
+        """
+        @@@@@@@@@@
+        randList
+        @@@@@@@@@@
+
+        description:
+          Returns two lists containing random indexes for training and test.
+          The training list will be split into batches of batcheSize.
+
+        args:
+          batchSize : Size of the batches for the training
+
+        returns:
+          trainingList : List containing the indexes for the training. This
+                         list is separated in batches to be iterated
+          testList : List containing the indexes for the test.
+
+        examples:
+          trainList, testList= dh.randList(100)
+        """
+        #check the size of the database
+        with h5py.File(self.fileName, "r",  libver='latest') as f:
+            qty = f["flatData/quantity"][0]
+        #random list with unique labels
+        temp = random.sample(range(0, qty),qty)
+        #round up to next batchsize the train indexes
+        endTrain = int(math.ceil(qty*TRAIN_RATIO / batchSize)) * batchSize
+        #generate the two lists
+        trainList, testList = temp[:endTrain], temp[endTrain:]
+        #split the trainlist into batches
+        trainList = np.array_split(trainList,endTrain/batchSize)
+        return trainList, testList
+
+
+
     def saveData(self, dataType = "hdf5"):
         """
         @@@@@@@@@@
@@ -487,9 +601,11 @@ class dataHandler():
                 #for first write, create group
                 if self.maxDataIndex == 0:
                     grp = f.create_group("flatData")
+                    grp.attrs["dataShape"] = self.dataShape
                     grp.create_dataset("data",
                                        data=self.buffer["data"],
                                        compression="lzf",
+                                       chunks=True,
                                        maxshape=(None, self.dataLength))
                     grp.create_dataset("quantity",
                                        data=[resize])
@@ -508,26 +624,76 @@ class dataHandler():
         self.maxDataIndex += resize
 
 
+    def setFilename(self, filename):
+        """
+        @@@@@@@@@@
+        setFilename
+        @@@@@@@@@@
+
+        description:
+          Set the filename to be accessed with the different operations
+
+        args:
+          filename : string with the name
+
+        returns:
+          NA
+
+        examples:
+          dh.setFilename("test.hdf5")
+        """
+        self.fileName = str(os.getcwd()) +"\\" + filename
 
 
 
 
 
-"""
-    TEST SECTION
-"""
-def test():
+#TEST SECTION
+if __name__ == "__main__":
+    #test parameters
+    DB_SIZE = 100000
+    DATA_SHAPE = [10,10,10,10]
+    BATCH_SIZE = 100
+    BATCH_LOAD = 100
+
+    print("{} elements of size {} and batches of {}".format(DB_SIZE,
+                                                             DATA_SHAPE,
+                                                             BATCH_SIZE))
+
     #datahandler object
     dh = dataHandler("hdf5")
-    #fake data
-    fake1=np.random.randint(255,size = [7056])
-    fake2=np.random.randint(255,size = [4,4])
-    fake3=np.random.randint(255,size = [512])
-    for _ in range(60000):
-        dh.addData(fake1,fake2,fake3)
-    del fake1, fake2, fake3
+
+
+    t = time.time()
+    for _ in range(DB_SIZE):
+        fake1=np.random.randint(255,size = DATA_SHAPE, dtype= np.uint8)
+#        fake2=np.random.randint(255,size = [1], dtype= np.uint8)
+        dh.addData(fake1)
+    print("db creation time:%.3f"%(time.time()-t))
+    del fake1
     #save the elements in the buffer
     dh.saveData()
 
+
+    #create random lists of batchSize
+    trainList, testList= dh.randList(BATCH_SIZE)
+
+    t = time.time()
+    #create the batch datasets
+    dh.createBatch(trainList,"training")
+    dh.createBatch(testList,"test")
+    print("batch creation time:%.3f"%(time.time()-t))
+
+    #Load from the batches
+    t = time.time()
+    for i in range(BATCH_LOAD):
+        batch1 = dh.loadBatch("training")
+    print("batch load time:{} for {} batches".format((time.time()-t),BATCH_LOAD))
+
+    #load from the raw data
+    t = time.time()
+    for i in range(BATCH_LOAD):
+        batch2 = dh.load(trainList[0])
+    print("raw load time:{} for {} batches".format((time.time()-t),BATCH_LOAD))
 
 
