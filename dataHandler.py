@@ -33,20 +33,21 @@ RESULTS:
     batch creation time:6.325
     batch load time:6.064691066741943 for 100 batches
     raw load time:52.64411544799805 for 100 batches
-    44.581Mo on memory
+    44.581 Mo on memory
 --
     10000 uint8 elements of size [10, 10, 10, 10] and batches of 100
     db creation time:13.798
     batch creation time:70.114
     batch load time:6.173628807067871 for 100 batches
     raw load time:60.94627594947815 for 100 batches
-    444.964Mo on memory
+    444.964 Mo on memory
 --
     100000 uint8 elements of size [10, 10, 10, 10] and batches of 100
     db creation time:142.547
     batch creation time:1378.497
     batch load time:6.798546552658081 for 100 batches
     raw load time:66.31550431251526 for 100 batches
+    4.448 Go on memory
 """
 
 
@@ -268,12 +269,12 @@ class dataHandler():
                                            maxshape=(len(batchList),
                                                      self.dataLength))
                         if i == 0:
-                            print("\tCreating train batch, time estimate=%.2fsec"
+                            print("Creating train batch, time estimate=%.2fsec"
                             %((time.time()-startTime)*len(randomList)))
 
                 #create test dataset
                 elif batchType == "test":
-                    print("\tCreate test batch")
+                    print("Create test batch")
                     grp = f.create_group("batch/test")
                     f["batch/test/list"] = randomList
                     grp.create_dataset("data",
@@ -651,7 +652,7 @@ class dataHandler():
 #TEST SECTION
 if __name__ == "__main__":
     #test parameters
-    DB_SIZE = 100000
+    DB_SIZE = 1000
     DATA_SHAPE = [10,10,10,10]
     BATCH_SIZE = 100
     BATCH_LOAD = 100
