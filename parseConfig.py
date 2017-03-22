@@ -10,7 +10,7 @@ parser.add_argument("-buff_size", type=float, default=4)
 parser.add_argument("-load_checkpoint", default="")
 parser.add_argument("-agent", default="DQN")
 parser.add_argument("-env_name", default="Breakout-v0")
-parser.add_argument("-num_episodes", type=int, default=100000)
+parser.add_argument("-num_steps", type=int, default=1000000)
 
 # useless but necessary config
 parser.add_argument("-replay_memory_capacity", type=int, default=10)
