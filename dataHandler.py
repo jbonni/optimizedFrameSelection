@@ -71,6 +71,7 @@ RESULTS:
         from datahandler class or datahandler will load hdf5 handler methods
 
     - slow to save and read!! add csv and other methods
+    - overwrite batches when create batches is called multiple times
 """
 
 
@@ -159,7 +160,7 @@ class dataHandler():
         self.fileType = fileType
 
         #filename with timestamp.
-        self.fileName = str(os.getcwd()) +"\\test_{}.{}".format(
+        self.fileName = str(os.getcwd()) +"\\dh_output_{}.{}".format(
             datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"),
             self.fileType)
 
@@ -199,24 +200,29 @@ class dataHandler():
         #first add to the file, note the shape of the array
         if self.dataLength == 0:
             self.dataLength = sum(shape)
-            self.dataShape = shape
+
+            self.dataShape = self.createIterableShape(shape)
             self.initBuffer()
-        else:
+#        else:
             #For now if the shape is different, cancel operations
             #Possible add to the future: create new datasets when different
             #input sizes.
-            if shape != self.dataShape:
-                print("DIFFERENT DATA SHAPE: ABORT WRITE")
-                raise
+#            if shape != self.dataShape:
+#                print("DIFFERENT DATA SHAPE: ABORT WRITE")
+#                raise
+
 
 
         #if buffer full, save to hdf5 file
         if self.buffIndex >= self.sliceSize:
             self.saveData()
+            self.initBuffer()
         #assign data to the buffer
         self.buffer["data"][self.buffIndex] = flat
 
         self.buffIndex += 1
+
+
 
 
     def createBatch(self, randomList, batchType = "training"):
@@ -290,6 +296,14 @@ class dataHandler():
                 raise
 
 
+    def createIterableShape(self,shape):
+            b = []
+            for index, data in enumerate(shape):
+                if index == 0:
+                    b.append([0,data])
+                else:
+                    b.append([b[index-1][1],b[index-1][1]+data])
+            return b
 
 
     def flattenData(self,*data):
@@ -353,6 +367,9 @@ class dataHandler():
         return dataArray, dataShape
 
 
+    def getDataShape(self):
+        with h5py.File(self.fileName, "r",  libver='latest') as f:
+            return f["flatData/"].attrs["dataShape"]
 
     def initBuffer(self):
         """
@@ -602,7 +619,7 @@ class dataHandler():
                 #for first write, create group
                 if self.maxDataIndex == 0:
                     grp = f.create_group("flatData")
-                    grp.attrs["dataShape"] = self.dataShape
+                    grp.attrs["dataShape"] = self.createIterableShape(self.dataShape)
                     grp.create_dataset("data",
                                        data=self.buffer["data"],
                                        compression="lzf",
@@ -617,12 +634,13 @@ class dataHandler():
                     f["flatData/data"][-resize:] = self.buffer["data"][:resize]
                     f["flatData/quantity"][0] = resize + \
                                                     f["flatData/quantity"][0]
+                    self.maxDataIndex += resize
         else:
             print("fileType not configured")
             raise
 
-        self.initBuffer()
-        self.maxDataIndex += resize
+
+
 
 
     def setFilename(self, filename):
@@ -650,10 +668,10 @@ class dataHandler():
 
 
 #TEST SECTION
-if __name__ == "__main__":
+if __name__ == "__main__" and False:
     #test parameters
-    DB_SIZE = 1000
-    DATA_SHAPE = [10,10,10,10]
+    DB_SIZE = 100000
+    DATA_SHAPE = [28,28,10]
     BATCH_SIZE = 100
     BATCH_LOAD = 100
 
@@ -667,11 +685,12 @@ if __name__ == "__main__":
 
     t = time.time()
     for _ in range(DB_SIZE):
-        fake1=np.random.randint(255,size = DATA_SHAPE, dtype= np.uint8)
+        fake1=np.random.randint(255,size = [28,28], dtype= np.uint8)
+        fake2=np.random.randint(255,size = [10], dtype= np.uint8)
 #        fake2=np.random.randint(255,size = [1], dtype= np.uint8)
-        dh.addData(fake1)
+        dh.addData(fake1,fake2)
     print("db creation time:%.3f"%(time.time()-t))
-    del fake1
+    del fake1, fake2
     #save the elements in the buffer
     dh.saveData()
 
