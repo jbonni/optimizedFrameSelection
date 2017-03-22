@@ -673,7 +673,7 @@ class dataHandler():
 #TEST SECTION
 if __name__ == "__main__":
     #test parameters
-    DB_SIZE = 1000
+    DB_SIZE = 20000
     DATA_SHAPE = [28,28,10]
     BATCH_SIZE = 100
     BATCH_LOAD = 100
@@ -685,21 +685,26 @@ if __name__ == "__main__":
     #datahandler object
     dh = dataHandler("hdf5")
 
-
+#[(1, 84, 84), (1, 4), (1,), (1,), (1,), (1, 3136), (1, 512)]
     t = time.time()
     for _ in range(DB_SIZE):
-        fake1=np.random.randint(255,size = [28,28], dtype= np.uint8)
-        fake2=np.random.randint(255,size = [10], dtype= np.uint8)
-#        fake2=np.random.randint(255,size = [1], dtype= np.uint8)
-        dh.addData(fake1,fake2)
+        fake1=np.random.randint(255,size = [1,5,5], dtype= np.uint8)
+        fake2=np.random.randint(255,size = [1,4], dtype= np.uint8)
+        fake3=np.array([1])
+        fake4=np.random.randint(255,size = [1,400], dtype= np.uint8)
+        dh.addData(fake1,fake2, fake3, fake4)
     print("db creation time:%.3f"%(time.time()-t))
-    del fake1, fake2
+    del fake1, fake2, fake3, fake4
     #save the elements in the buffer
     dh.saveData()
 
 
     #create random lists of batchSize
     trainList, testList= dh.randList(BATCH_SIZE)
+
+    if len(testList) == 0:
+        print("Not enough data to create batches")
+        raise
 
     t = time.time()
     #create the batch datasets
