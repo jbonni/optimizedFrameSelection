@@ -72,6 +72,9 @@ RESULTS:
 
     - slow to save and read!! add csv and other methods
     - overwrite batches when create batches is called multiple times
+    - Manage the deletion of the object (to empty the buffer before close)
+
+    - Manage int as inputs and others.
 """
 
 
@@ -619,7 +622,7 @@ class dataHandler():
                 #for first write, create group
                 if self.maxDataIndex == 0:
                     grp = f.create_group("flatData")
-                    grp.attrs["dataShape"] = self.createIterableShape(self.dataShape)
+                    grp.attrs["dataShape"] = self.dataShape
                     grp.create_dataset("data",
                                        data=self.buffer["data"],
                                        compression="lzf",
@@ -634,7 +637,7 @@ class dataHandler():
                     f["flatData/data"][-resize:] = self.buffer["data"][:resize]
                     f["flatData/quantity"][0] = resize + \
                                                     f["flatData/quantity"][0]
-                    self.maxDataIndex += resize
+                self.maxDataIndex += resize
         else:
             print("fileType not configured")
             raise
@@ -668,9 +671,9 @@ class dataHandler():
 
 
 #TEST SECTION
-if __name__ == "__main__" and False:
+if __name__ == "__main__":
     #test parameters
-    DB_SIZE = 100000
+    DB_SIZE = 1000
     DATA_SHAPE = [28,28,10]
     BATCH_SIZE = 100
     BATCH_LOAD = 100
