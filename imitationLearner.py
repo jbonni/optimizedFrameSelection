@@ -137,6 +137,7 @@ class imitationLearner():
     def run(self):
         #Loads the MNIST dataset
         self.dh.setFilename("mnist.hdf5")
+        dhGen = dh.dataHandler()
 
         # Add the variable initializer Op.
         init = tf.global_variables_initializer()
@@ -145,10 +146,13 @@ class imitationLearner():
         self.sess.run(init)
 
         #load the test batch
-        print(" ".join(["loading...",self.dh.fileName]))
+        print(" ".join(["loading",self.dh.fileName]))
         testBatch = self.dh.loadBatch("test")
-        testData = testBatch[:,0:784]
-        testLabel = testBatch[:,784:794]
+
+        #separate data
+        dataShape = self.dh.getDataShape()
+        testData = testBatch[:,dataShape[0,0]:dataShape[0,1]]
+        testLabel = testBatch[:,dataShape[1,0]:dataShape[1,1]]
 
         #Training loop
         print("Begin training")
@@ -158,13 +162,18 @@ class imitationLearner():
 
             batch = self.dh.loadBatch()
 
-            feed_dict = {self.input_ph:batch[:,0:784],
-                         self.label_ph:batch[:,784:794],
+            feed_dict = {self.input_ph:batch[:,dataShape[0,0]:dataShape[0,1]],
+                         self.label_ph:batch[:,dataShape[1,0]:dataShape[1,1]],
                          self.keep_prob: 0.5}
 
             # Run one step of the model.
             _, loss = self.sess.run([self.train_op, self.loss_op],
                                           feed_dict=feed_dict)
+
+            if step >= 20000:
+                self.param.learning_rate = 0
+                for data in batch[:,dataShape[0,0]:dataShape[0,1]]:
+                    dhGen.addData(data, loss)
 
             #Show loss of network
             if step % 100 == 0:
@@ -181,6 +190,7 @@ class imitationLearner():
                                             self.label_ph: testLabel,
                                             self.keep_prob: 1.0}))
                 start_time = time.time()
+        dhGen.saveData()
 
 
 if __name__ == "__main__":
