@@ -12,7 +12,7 @@ import cProfile as cP
 
 
 
-TRAIN_RATIO = 0.9
+TRAIN_RATIO = 1
 SLICE_SIZE = 200
 
 
@@ -75,6 +75,8 @@ RESULTS:
     - Manage the deletion of the object (to empty the buffer before close)
 
     - Manage int as inputs and others.
+    - manage groups already created
+    -Loading functions to improve. Many problems and need to be expert
 """
 
 
@@ -581,6 +583,8 @@ class dataHandler():
         temp = random.sample(range(0, qty),qty)
         #round up to next batchsize the train indexes
         endTrain = int(math.ceil(qty*TRAIN_RATIO / batchSize)) * batchSize
+        print(qty)
+        print(endTrain)
         #generate the two lists
         trainList, testList = temp[:endTrain], temp[endTrain:]
         #split the trainlist into batches
@@ -671,7 +675,7 @@ class dataHandler():
 
 
 #TEST SECTION
-if __name__ == "__main__":
+if __name__ == "__main__" and False:
     #test parameters
     DB_SIZE = 20000
     DATA_SHAPE = [28,28,10]
@@ -687,14 +691,23 @@ if __name__ == "__main__":
 
 #[(1, 84, 84), (1, 4), (1,), (1,), (1,), (1, 3136), (1, 512)]
     t = time.time()
+
+
     for _ in range(DB_SIZE):
-        fake1=np.random.randint(255,size = [1,5,5], dtype= np.uint8)
+        fake1=np.random.randint(255,size = [1, 84, 84], dtype= np.uint8)
         fake2=np.random.randint(255,size = [1,4], dtype= np.uint8)
         fake3=np.array([1])
-        fake4=np.random.randint(255,size = [1,400], dtype= np.uint8)
-        dh.addData(fake1,fake2, fake3, fake4)
+        fake4=np.array([1])
+        fake5=np.array([1])
+        fake6=np.random.randint(255,size = [1, 3136], dtype= np.uint8)
+        fake7=np.random.randint(255,size = [1, 512], dtype= np.uint8)
+        dh.addData(fake1,fake2, fake3, fake4, fake5, fake6, fake7)
+
+
+
+
     print("db creation time:%.3f"%(time.time()-t))
-    del fake1, fake2, fake3, fake4
+    del fake1, fake2, fake3, fake4, fake5, fake6, fake7
     #save the elements in the buffer
     dh.saveData()
 
